@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use leptos::{component, create_memo, create_rw_signal, provide_context, use_context, view, For, IntoView, RwSignal, SignalGet, SignalUpdate};
+use leptos::{component, create_memo, create_rw_signal, create_signal, provide_context, use_context, view, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
 use leptos_mview::mview;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
@@ -33,8 +33,10 @@ pub fn App() -> impl IntoView {
 
 #[component]
 pub fn ImageUploader() -> impl IntoView {
+    let (file_count, set_file_count) = create_signal(0);
     let app_state = use_context::<AppState>().expect("AppState not provided");
 
+    let app_clone = app_state.clone();
     let on_files_change = move |ev: Event| {
         let app_state = app_state.clone(); // Clone here
         let input: HtmlInputElement = ev.target().unwrap().unchecked_into();
@@ -44,8 +46,12 @@ pub fn ImageUploader() -> impl IntoView {
     };
 
     view! {
-        <div>
-            <input type="file" accept="image/*" on:change=on_files_change multiple=true />
+        <label class="inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
+          <input type="file" accept="image/*" class="hidden" on:change=on_files_change multiple />
+          <span class="text-sm">Choose Files</span>
+        </label>
+        <div class="inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-gray-700">
+            {move || {app_clone.input_files.get().len()}}
         </div>
     }
 }
