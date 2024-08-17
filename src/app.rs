@@ -20,12 +20,14 @@ pub fn App() -> impl IntoView {
     mview! {
         // Content Sections
         div class="flex flex-1 items-center justify-center h-screen bg-gray-100" {
-            div class="basis-1/2 flex flex-1 h-full align-center h-full" {
+            div class="basis-1/2 flex flex-1 h-full align-center h-full flex-col" {
+
                 div class="h-full w-1/4" {
+                    p class="text-xl" {"Uploaded"}
                     ImageUploader;
                     ImageContainer id="uploaded-images";
                 }
-                "Uploaded"
+
             }
         }
     }
@@ -60,8 +62,31 @@ pub fn ImageUploader() -> impl IntoView {
 pub fn ImageContainer(id: &'static str) -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
     let images = app_state.input_files;
+    let select_state = app_state.clone();
+    let select_all = move |mv| {
+        select_state.input_files.update(|files| {
+            files.iter_mut().for_each(|mut image| {
+                image.is_selected.set(true);
+            })
+        });
+    };
+    let unselect_all = move |mv| {
+        select_state.input_files.update(|files| {
+            files.iter_mut().for_each(|mut image| {
+                image.is_selected.set(false);
+            })
+        });
+    };
+
+
+
     view! {
         <div id={id} class="h-5/6 w-full bg-gray-200 overflow-auto">
+            <div class="flex flex-row">
+                <button on:click=select_all class="w-full">Select All</button>
+                <button on:click=unselect_all class="w-full">Unselect All</button>
+            </div>
+
             <For
                 each=move || images.get()
                 key=|image| image.id.clone() // Assuming id is a String or similar clonable type
@@ -124,6 +149,7 @@ fn process_files(file_list: FileList, state: AppState) {
                     add_image(DisplayImage {
                             id: generate_unique_key(),
                             is_completed: false,
+                            is_selected: create_rw_signal(false),
                             name: file_name.clone(),
                             in_filetype: format.extensions_str()[0],
                             out_filetype: None,

@@ -19,6 +19,7 @@ use crate::app::{App};
 pub struct DisplayImage {
     id: String,
     is_completed: bool,
+    is_selected: RwSignal<bool>,
     name: String,
     in_filetype: &'static str,
     out_filetype: Option<&'static str,>,
@@ -74,11 +75,11 @@ pub fn generate_unique_key() -> String {
 
 impl DisplayImage {
     pub fn render(&self) -> impl IntoView {
-        let (checked, set_checked) = create_signal(false);
-
         let name = self.name.clone();
         let completed_time = self.time_completed.clone();
         let is_completed = self.is_completed;
+
+        let is_selected = self.is_selected.clone();
 
         let conversion_str = match self.out_filetype {
             None => format!("{}", self.in_filetype),
@@ -95,10 +96,9 @@ impl DisplayImage {
                     when=[!is_completed]
                     fallback=[view! {""}] {
                     label class="custom-checkbox inline-flex items-center" {
-                        input type="checkbox" on:input={move |ev| {
-                            set_checked.set(event_target_checked(&ev))
+                        input type="checkbox" checked={is_selected.get()} on:input={move |ev| {
+                            is_selected.set(event_target_checked(&ev))
                         }}; {}
-
                     }
 
                 }
@@ -125,6 +125,7 @@ impl DisplayImage {
         Ok(DisplayImage {
             id: generate_unique_key(),
             is_completed: false,
+            is_selected: create_rw_signal(false),
             name: filename.to_string(),
             in_filetype: format.extensions_str()[0],
             out_filetype: None,
@@ -140,6 +141,7 @@ impl DisplayImage {
         Ok(DisplayImage {
             id: generate_unique_key(),
             is_completed: false,
+            is_selected: create_rw_signal(false),
             name: filename.to_string(),
             in_filetype: format.extensions_str()[0],
             out_filetype: None,
