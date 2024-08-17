@@ -13,6 +13,7 @@ use image::imageops::FilterType;
 use leptos::{component, view, IntoView};
 use leptos_mview::mview;
 use uuid::Uuid;
+use web_sys::MouseEvent;
 use crate::app::{App};
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -87,19 +88,27 @@ impl DisplayImage {
 
         };
 
+        let on_checkbox=move |ev| {
+            is_selected.set(event_target_checked(&ev))
+        };
+
+        let on_clicked = move |mv: MouseEvent| {
+            let invert = !is_selected.get();
+            is_selected.set(invert);
+        };
+
         let image_str = generate_sample_image(&self.image);
         let finish_time = completed_time.unwrap_or_else(|| String::new());
 
         mview! {
-            div class="flex flex-row align-middle w-full h-20 hover:bg-blue-700" {
-                Show
-                    when=[!is_completed]
-                    fallback=[view! {""}] {
-                    label class="custom-checkbox inline-flex items-center" {
-                        input type="checkbox" checked={is_selected.get()} on:input={move |ev| {
-                            is_selected.set(event_target_checked(&ev))
-                        }}; {}
+            div class="flex flex-row align-middle w-full h-20 hover:bg-blue-700" on:click={on_clicked} {
+                Show when=[!is_completed] fallback=[view! {""}] {
+                    div class="flex items-center justify-center pl-2" {
+                        label class="custom-checkbox inline-flex" {
+                            input type="checkbox" checked={is_selected.get()} on:input={on_checkbox}; {}
+                        }
                     }
+
 
                 }
                 img src={image_str} class="m-2 h-16 w-16 bg-red-800" {

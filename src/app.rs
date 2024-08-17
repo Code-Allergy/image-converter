@@ -18,17 +18,23 @@ pub fn App() -> impl IntoView {
     provide_context(app_state);
 
     mview! {
-        // Content Sections
         div class="flex flex-1 items-center justify-center h-screen bg-gray-100" {
             div class="basis-1/2 flex flex-1 h-full align-center h-full flex-col" {
-
-                div class="h-full w-1/4" {
-                    p class="text-xl" {"Uploaded"}
-                    ImageUploader;
-                    ImageContainer id="uploaded-images";
-                }
-
+                UploadedImagesContainer;
             }
+        }
+    }
+}
+
+#[component]
+pub fn UploadedImagesContainer() -> impl IntoView {
+
+
+    mview! {
+        div class="h-full w-1/4" {
+            h1 class="text-xl text-center" {"Uploaded"}
+            ImageUploader;
+            ImageContainer id="uploaded-images";
         }
     }
 }
@@ -48,12 +54,14 @@ pub fn ImageUploader() -> impl IntoView {
     };
 
     view! {
-        <label class="inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
-          <input type="file" accept="image/*" class="hidden" on:change=on_files_change multiple />
-          <span class="text-sm">Choose Files</span>
-        </label>
-        <div class="inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-gray-700">
-            {move || {app_clone.input_files.get().len()}}
+        <div class="flex">
+            <label class="inline-flex grow items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
+              <input type="file" accept="image/*" class="hidden" on:change=on_files_change multiple />
+              <span class="text-sm">Choose Files</span>
+            </label>
+            <div class="inline-flex px-4 py-2 border border-gray-300 bg-white text-gray-700">
+                {move || {app_clone.input_files.get().len()}}
+            </div>
         </div>
     }
 }
