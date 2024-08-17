@@ -15,6 +15,7 @@ js-sys = "0.3.70"
 leptos-mview = "0.3.2"
 cfg-if = "1.0.0"
 lazy_static = "1.5.0"
+uuid = { version = "1.10.0", features = ["v4"] }
 
 
 

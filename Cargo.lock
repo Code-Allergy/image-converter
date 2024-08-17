@@ -2113,6 +2113,7 @@ dependencies = [
  "lazy_static",
  "leptos",
  "leptos-mview",
+ "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

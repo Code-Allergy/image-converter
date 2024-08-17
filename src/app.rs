@@ -4,7 +4,7 @@ use leptos_mview::mview;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 use web_sys::{Event, File, FileList, HtmlInputElement};
-use crate::{AppState, DisplayImage, ImageGallery};
+use crate::{generate_unique_key, AppState, DisplayImage};
 
 
 lazy_static! {
@@ -17,148 +17,15 @@ pub fn App() -> impl IntoView {
     let app_state = AppState { input_files: images, count: 0 };
     provide_context(app_state);
 
-
-    let unfinished = vec![
-        DisplayImage {
-            id: 1,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 2,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 3,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 4,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 5,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 6,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 7,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 8,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 9,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 10,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 11,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 12,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 13,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id:14,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 15,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-        DisplayImage {
-            id: 16,
-            is_completed: false,
-            name: "vacation-to-disney-213.jpg".to_owned(),
-            in_filetype: "jpg",
-            out_filetype: Some("png"),
-            time_completed: Some("04:43:43 PM 17-08-2024".to_owned()),
-        },
-    ];
-
     mview! {
         // Content Sections
         div class="flex flex-1 items-center justify-center h-screen bg-gray-100" {
             div class="basis-1/2 flex flex-1 h-full align-center h-full" {
                 div class="h-full w-1/4" {
                     ImageUploader;
-                    ImageContainer id="uploaded-images" images={unfinished};
+                    ImageContainer id="uploaded-images";
                 }
                 "Uploaded"
-                ImageGallery;
             }
         }
     }
@@ -184,11 +51,13 @@ pub fn ImageUploader() -> impl IntoView {
 }
 
 #[component]
-pub fn ImageContainer(id: &'static str, images: Vec<DisplayImage>) -> impl IntoView {
+pub fn ImageContainer(id: &'static str) -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let images = app_state.input_files;
     view! {
         <div id={id} class="h-5/6 w-full bg-gray-200 overflow-auto">
             <For
-                each=move || images.clone()
+                each=move || images.get()
                 key=|image| image.id.clone() // Assuming id is a String or similar clonable type
                 children=move |new_image: DisplayImage| {
                     new_image.render()
@@ -245,14 +114,15 @@ fn process_files(file_list: FileList, state: AppState) {
                 let format = image::guess_format(&vec).ok().expect("Invalid file format!");
 
                 // Create DynamicImage from memory
-                if let Ok(_img) = image::load_from_memory(&vec) {
+                if let Ok(img) = image::load_from_memory(&vec) {
                     add_image(DisplayImage {
-                            id: 0,
+                            id: generate_unique_key(),
                             is_completed: false,
                             name: file_name.clone(),
                             in_filetype: format.extensions_str()[0],
                             out_filetype: None,
                             time_completed: None,
+                            image: img,
                     });
                 }
             }

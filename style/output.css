@@ -614,6 +614,10 @@ video {
   flex-basis: 50%;
 }
 
+.resize {
+  resize: both;
+}
+
 .flex-row {
   flex-direction: row;
 }
@@ -628,6 +632,10 @@ video {
 
 .overflow-auto {
   overflow: auto;
+}
+
+.overflow-hidden {
+  overflow: hidden;
 }
 
 .border-t {
@@ -659,8 +667,8 @@ video {
 }
 
 .custom-checkbox {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
 }
 
 .custom-checkbox input[type="checkbox"] {
