@@ -1,0 +1,53 @@
+[package]
+name = "web-image-converter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64 = "0.22.1"
+console_error_panic_hook = "0.1.7"
+image = "0.25.2"
+leptos = { version = "0.6.14", features = ["csr"] }
+wasm-bindgen = "0.2.93"
+wasm-bindgen-futures = "0.4.43"
+web-sys = { version = "0.3", features = ["HtmlInputElement", "Document", "Window", "FileList", "File", "HtmlImageElement"] }
+js-sys = "0.3.70"
+leptos-mview = "0.3.2"
+cfg-if = "1.0.0"
+lazy_static = "1.5.0"
+
+
+
+[features]
+csr = []
+leptos_image = []
+
+
+[package.metadata.leptonic]
+# REQUIRED: Leptonic's build-script will copy the Leptonic themes to this directory.
+style-dir = "style"
+
+# REQUIRED: Leptonic's build-script will copy static JS dependencies to this directory.
+js-dir = "public/js"
+
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+
+
+
+[package.metadata.leptos]
+# ....
+# The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
+site-root = "target/site"
+# The site-root relative folder where all compiled output (JS, WASM and CSS) is written
+# Defaults to pkg
+site-pkg-dir = "pkg"
+lib-profile-release = "wasm-release"
+# [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
+style-file = "style/output.css"
+# The IP and port (ex: 127.0.0.1:3000) where the server serves the content. Use it in your server setup.
+site-address = "127.0.0.1:3000"
