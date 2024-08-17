@@ -1,8 +1,12 @@
+use std::cell::RefCell;
 use std::io::Cursor;
+use std::rc::Rc;
+use std::sync::Mutex;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 use image::{DynamicImage, EncodableLayout, ExtendedColorType, ImageEncoder, ImageFormat};
+use image::error::ImageFormatHint;
 use image::error::UnsupportedErrorKind::Color;
 use lazy_static::lazy_static;
 use leptos::{component, create_memo, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
@@ -11,7 +15,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{Event, File, FileList, HtmlInputElement};
-use crate::{generate_unique_key, AppState, DisplayImage};
+use crate::{generate_sample_image, generate_unique_key, AppState, DisplayImage};
 
 
 
@@ -155,6 +159,7 @@ fn convert_image(img: DynamicImage, format: ImageFormat) -> Result<Vec<u8>, ()> 
 
 
 
+
 #[component]
 pub fn App() -> impl IntoView {
     let app_state = AppState { input_files: Default::default(), queued_files: Default::default(), output_files: Default::default(), count: 0 };
@@ -186,21 +191,23 @@ pub fn App() -> impl IntoView {
     });
 
     mview! {
-        div class="flex w-screen h-screen bg-gray-100" {
-            div class="flex h-full basis-2/3"{
-                div class="flex basis-1/4 h-full justify-center flex-col" {
-                    UploadedImagesContainer;
-                }
-                div class="h-full basis-1/4" {
-                    ConversionOptionsPanel;
-                }
-                div class="h-full basis-1/4 h-full justify-center flex flex-col" {
-                    QueuedImagesContainer;
-                }
-                div class="h-full basis-1/4" {
-                }
+        div class="flex w-screen h-screen bg-gray-100 justify-center items-center" {
+            div class="w-3/4 h-3/4" {
+                div class="flex h-full basis-2/3"{
+                    div class="flex basis-1/4 h-full justify-center flex-col" {
+                        UploadedImagesContainer;
+                    }
+                    div class="h-full basis-1/4" {
+                        ConversionOptionsPanel;
+                    }
+                    div class="h-full basis-1/4 h-full justify-center flex flex-col" {
+                        QueuedImagesContainer;
+                    }
+                    div class="h-full basis-1/4 h-full justify-center flex flex-col" {
+                        OutputImagesContainer;
+                    }
 
-
+                }
             }
 
 
@@ -297,6 +304,21 @@ fn FormatSelector(
             <option value="WEBP">"WEBP"</option>
         </select>
     }
+}
+
+#[component]
+pub fn OutputImagesContainer() -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let images = app_state.output_files;
+
+    mview! {
+        div class="h-5/6 w-full" {
+            h1 class="text-xl text-center" {"Finished"}
+            ImageContainer id="upload-images" source={images};
+        }
+
+    }
+
 }
 
 #[component]
@@ -405,6 +427,7 @@ fn process_files(file_list: FileList, state: AppState) {
     let files: Vec<File> = (0..file_list.length())
         .filter_map(|i| file_list.get(i))
         .collect();
+    let reusable_buffer = Rc::new(RefCell::new(Vec::with_capacity(8192)));
 
     for file in files {
         let file_reader = web_sys::FileReader::new().unwrap();
@@ -412,6 +435,7 @@ fn process_files(file_list: FileList, state: AppState) {
         let file_reader_clone = file_reader.clone();
 
         let file_name = file.name();
+        let buffer_clone = reusable_buffer.clone();
 
         let onload = Closure::wrap(Box::new(move |_: Event| {
             if let Ok(buffer) = file_reader_clone.result() {
@@ -422,6 +446,8 @@ fn process_files(file_list: FileList, state: AppState) {
 
                 // Create DynamicImage from memory
                 if let Ok(img) = image::load_from_memory(&vec) {
+                    let mut buffer = buffer_clone.borrow_mut();
+                    buffer.clear();  // Clear the buffer before reuse
                     add_image(DisplayImage {
                             id: generate_unique_key(),
                             is_completed: false,
@@ -430,6 +456,7 @@ fn process_files(file_list: FileList, state: AppState) {
                             in_filetype: format.extensions_str()[0],
                             out_filetype: None,
                             time_completed: None,
+                            preview: generate_sample_image(&img, &mut buffer),
                             image: img,
                         result: vec![],
                     });

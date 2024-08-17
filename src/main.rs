@@ -22,6 +22,7 @@ pub struct DisplayImage {
     is_completed: bool,
     is_selected: RwSignal<bool>,
     name: String,
+    preview: String,
     in_filetype: &'static str,
     out_filetype: Option<ImageFormat>,
     time_completed: Option<String>, // FOR NOW this is string todo
@@ -53,22 +54,26 @@ struct AppState {
 //     format!("data:image/png;base64,{}", out_buff)
 // }
 
-fn generate_sample_image(img: &DynamicImage) -> String {
-    // Create a buffer to store the image data
-    let mut buffer = Cursor::new(Vec::new());
+fn generate_sample_image(img: &DynamicImage, buffer: &mut Vec<u8>) -> String {
+    buffer.clear(); // Clear the buffer for reuse
 
-    // Write the image to the buffer in the specified format
+    // Resize the image
     let resized = img.resize(64, 64, FilterType::Lanczos3);
-    resized.write_to(&mut buffer, ImageFormat::Png).expect("Failed to write image to buffer");
 
-    // Get the bytes from the buffer
-    let bytes = buffer.into_inner();
+    // Create a Cursor wrapping the buffer
+    let mut cursor = Cursor::new(buffer);
 
+    // Write the image to the cursor in JPEG format with 85% quality
+    resized.write_to(&mut cursor, ImageFormat::Png)
+        .expect("Failed to write image to buffer");
+
+    // Get the inner buffer from the cursor
+    let buffer = cursor.into_inner();
 
     // Encode the bytes to base64
-    let base64 = general_purpose::STANDARD.encode(bytes);
+    let base64 = general_purpose::STANDARD.encode(buffer);
 
-
+    // Return the data URL
     format!("data:image/png;base64,{}", base64)
 }
 
@@ -80,8 +85,10 @@ pub fn generate_unique_key() -> String {
 impl DisplayImage {
     pub fn render(&self) -> impl IntoView {
         let name = self.name.clone();
-        let completed_time = self.time_completed.clone();
         let is_completed = self.is_completed;
+        let preview = self.preview.clone();
+        let completed_time = self.time_completed.clone();
+
 
         let is_selected = self.is_selected.clone();
 
@@ -99,7 +106,8 @@ impl DisplayImage {
             is_selected.set(invert);
         };
 
-        let image_str = generate_sample_image(&self.image);
+
+
         let finish_time = completed_time.unwrap_or_else(|| String::new());
 
         mview! {
@@ -113,7 +121,7 @@ impl DisplayImage {
 
 
                 }
-                img src={image_str} class="m-2 h-16 w-16 bg-red-800" {
+                img src={preview} class="m-2 h-16 w-16 bg-red-800" {
 
                 }
                 div class="mt-1 w-full h-full overflow-hidden" {
@@ -138,6 +146,7 @@ impl DisplayImage {
             is_completed: false,
             is_selected: create_rw_signal(false),
             name: filename.to_string(),
+            preview: String::new(),
             in_filetype: format.extensions_str()[0],
             out_filetype: None,
             time_completed: None,
@@ -155,11 +164,13 @@ impl DisplayImage {
             is_completed: false,
             is_selected: create_rw_signal(false),
             name: filename.to_string(),
+            preview: String::new(),
             in_filetype: format.extensions_str()[0],
             out_filetype: None,
             time_completed: None,
             image: img,
             result: vec![],
+
         })
     }
 }
