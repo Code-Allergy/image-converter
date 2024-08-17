@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.22.1"
 console_error_panic_hook = "0.1.7"
-image = "0.25.2"
+image = { version="0.25.2", features = ["jpeg", "png", "webp", "dds", "tga", "gif", "bmp"] }
 leptos = { version = "0.6.14", features = ["csr"] }
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.43"
@@ -16,6 +16,7 @@ leptos-mview = "0.3.2"
 cfg-if = "1.0.0"
 lazy_static = "1.5.0"
 uuid = { version = "1.10.0", features = ["v4"] }
+async-std = "1.12.0"
 
 
 

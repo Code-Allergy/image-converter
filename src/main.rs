@@ -14,7 +14,7 @@ use leptos::{component, view, IntoView};
 use leptos_mview::mview;
 use uuid::Uuid;
 use web_sys::MouseEvent;
-use crate::app::{App};
+use crate::app::App;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DisplayImage {
@@ -23,9 +23,10 @@ pub struct DisplayImage {
     is_selected: RwSignal<bool>,
     name: String,
     in_filetype: &'static str,
-    out_filetype: Option<&'static str,>,
+    out_filetype: Option<ImageFormat>,
     time_completed: Option<String>, // FOR NOW this is string todo
-    image: DynamicImage
+    image: DynamicImage,
+    result: Vec<u8>
 }
 
 
@@ -33,6 +34,8 @@ pub struct DisplayImage {
 #[derive(Clone, Default)]
 struct AppState {
     input_files: RwSignal<Vec<DisplayImage>>,
+    queued_files: RwSignal<Vec<DisplayImage>>,
+    output_files: RwSignal<Vec<DisplayImage>>,
     count: i32,
 }
 
@@ -82,10 +85,9 @@ impl DisplayImage {
 
         let is_selected = self.is_selected.clone();
 
-        let conversion_str = match self.out_filetype {
+        let conversion_str = match &self.out_filetype {
             None => format!("{}", self.in_filetype),
-            Some(out_ext) => format!("{} -> {}", self.in_filetype, out_ext),
-
+            Some(out_ext) => format!("{} -> {}", self.in_filetype, out_ext.extensions_str()[0]),
         };
 
         let on_checkbox=move |ev| {
@@ -140,6 +142,7 @@ impl DisplayImage {
             out_filetype: None,
             time_completed: None,
             image: img,
+            result: vec![],
         })
     }
 
@@ -156,6 +159,7 @@ impl DisplayImage {
             out_filetype: None,
             time_completed: None,
             image: img,
+            result: vec![],
         })
     }
 }

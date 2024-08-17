@@ -1,40 +1,328 @@
+use std::io::Cursor;
+use std::thread;
+use std::thread::sleep;
+use std::time::Duration;
+use image::{DynamicImage, EncodableLayout, ExtendedColorType, ImageEncoder, ImageFormat};
+use image::error::UnsupportedErrorKind::Color;
 use lazy_static::lazy_static;
-use leptos::{component, create_memo, create_rw_signal, create_signal, provide_context, use_context, view, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
+use leptos::{component, create_memo, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
 use leptos_mview::mview;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{Event, File, FileList, HtmlInputElement};
 use crate::{generate_unique_key, AppState, DisplayImage};
 
 
-lazy_static! {
 
+fn convert_image(img: DynamicImage, format: ImageFormat) -> Result<Vec<u8>, ()> {
+    let mut buffer = Vec::new();
+    let mut cursor = Cursor::new(&mut buffer);
+
+    match format {
+        ImageFormat::Png => {
+            let encoder = image::codecs::png::PngEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Jpeg => {
+            let encoder = image::codecs::jpeg::JpegEncoder::new(&mut cursor);
+            let img = img.to_rgb8();
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::Rgb8, // TODO handle removing alpha for jpeg
+            ).unwrap();
+        },
+        ImageFormat::Gif => {
+            let mut encoder = image::codecs::gif::GifEncoder::new(&mut cursor);
+            encoder.encode(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        // ImageFormat::WebP => {
+        //     let encoder = image::codecs::webp::WebPEncoder::new(&mut cursor);
+        //     encoder.write_image(
+        //         img.as_bytes(),
+        //         img.width(),
+        //         img.height(),
+        //         ExtendedColorType::from(img.color()),
+        //     ).unwrap();
+        // },
+        ImageFormat::Pnm => {
+            let encoder = image::codecs::pnm::PnmEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Tiff => {
+            let encoder = image::codecs::tiff::TiffEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Tga => {
+            let encoder = image::codecs::tga::TgaEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Bmp => {
+            let encoder = image::codecs::bmp::BmpEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Ico => {
+            let encoder = image::codecs::ico::IcoEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Hdr => {
+            let encoder = image::codecs::hdr::HdrEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::OpenExr => {
+            let encoder = image::codecs::openexr::OpenExrEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Farbfeld => {
+            let encoder = image::codecs::farbfeld::FarbfeldEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Avif => {
+            let encoder = image::codecs::avif::AvifEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        ImageFormat::Qoi => {
+            let encoder = image::codecs::qoi::QoiEncoder::new(&mut cursor);
+            encoder.write_image(
+                img.as_bytes(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::from(img.color()),
+            ).unwrap();
+        },
+        _ => {}
+    };
+//
+    Ok(buffer)
 }
+
+
 
 #[component]
 pub fn App() -> impl IntoView {
-    let images = create_rw_signal(vec![]);
-    let app_state = AppState { input_files: images, count: 0 };
-    provide_context(app_state);
+    let app_state = AppState { input_files: Default::default(), queued_files: Default::default(), output_files: Default::default(), count: 0 };
+    provide_context(app_state.clone());
+
+    let tester_resolver = spawn_local(async move {
+        loop {
+            let queued = app_state.queued_files;
+            let queued_items = app_state.queued_files.get();
+
+            if !queued_items.is_empty() {
+                queued.update(|files| {
+                    let output_items = app_state.output_files;
+                    let mut file = files.pop().unwrap();
+                    let out_type = file.out_filetype.clone().unwrap();
+
+                    let encoded = convert_image(file.image.clone(), out_type);
+
+                    // process the image now.
+                    file.result = encoded.expect("Failed to process a picture to PNG");
+
+                    output_items.clone().update(|output_item| output_item.push(file));
+                })
+            };
+
+
+            async_std::task::sleep(Duration::from_micros(10)).await;
+        }
+    });
 
     mview! {
-        div class="flex flex-1 items-center justify-center h-screen bg-gray-100" {
-            div class="basis-1/2 flex flex-1 h-full align-center h-full flex-col" {
-                UploadedImagesContainer;
+        div class="flex w-screen h-screen bg-gray-100" {
+            div class="flex h-full basis-2/3"{
+                div class="flex basis-1/4 h-full justify-center flex-col" {
+                    UploadedImagesContainer;
+                }
+                div class="h-full basis-1/4" {
+                    ConversionOptionsPanel;
+                }
+                div class="h-full basis-1/4 h-full justify-center flex flex-col" {
+                    QueuedImagesContainer;
+                }
+                div class="h-full basis-1/4" {
+                }
+
+
             }
+
+
         }
     }
 }
 
-#[component]
-pub fn UploadedImagesContainer() -> impl IntoView {
+fn update_uploaded_files(uploaded_files: &mut Vec<DisplayImage>, format: ImageFormat) {
+    // Iterate mutably over the vector and update each element
+    for img in uploaded_files.iter_mut() {
+        img.out_filetype = Some(format);
+    }
+}
 
+#[component]
+pub fn ConversionOptionsPanel(
+) -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+
+
+    let (output_format, set_output_format) = create_signal(None);
+
+
+    let uploaded = app_state.input_files;
+    let queued = app_state.queued_files;
+
+    // let update_format = move |ev| {
+    //     let new_value = event_target_value(&ev);
+    //     set_output_format.set(new_value.parse().unwrap());
+    // };
+
+    let update_format = move |format| {
+        set_output_format.set(Some(format));
+    };
+
+    let transfer_to_queue = move |_| {
+        queued.update(|queued| {
+            let format = output_format.get();
+            let mut uploaded_files = uploaded.get();
+            update_uploaded_files(&mut uploaded_files, output_format.get().unwrap());
+            queued.extend(uploaded_files);
+            uploaded.update(|queue| queue.clear());
+        });
+    };
 
     mview! {
-        div class="h-full w-1/4" {
+        div class="flex flex-col items-center justify-center h-full w-full bg-green-600" {
+            button class="h-24 w-1/4 bg-green-100" on:click={transfer_to_queue} {
+                "TRANSFER"
+                // img src="static/arrow.png";
+            }
+
+            FormatSelector on_change={update_format};
+        }
+    }
+}
+
+
+#[component]
+fn FormatSelector(
+    #[prop(into)] on_change: Callback<ImageFormat>
+) -> impl IntoView {
+    let update_format = move |ev| {
+        let format = event_target_value(&ev);
+        let image_format = match format.as_str() {
+            "PNG" => ImageFormat::Png,
+            "BMP" => ImageFormat::Bmp,
+            "GIF" => ImageFormat::Gif,
+            "HDR" => ImageFormat::Hdr,
+            "ICO" => ImageFormat::Ico,
+            "JPEG" => ImageFormat::Jpeg,
+            "EXR" => ImageFormat::OpenExr,
+            "PNM" => ImageFormat::Pnm,
+            "TGA" => ImageFormat::Tga,
+            "TIFF" => ImageFormat::Tiff,
+            "WEBP" => ImageFormat::WebP,
+            _ => ImageFormat::Png, // Default to PNG if unknown
+        };
+        on_change.call(image_format);
+    };
+
+    view! {
+        <select id="format-selector" name="format" on:change=update_format>
+            <option value="PNG">"PNG"</option>
+            <option value="BMP">"BMP"</option>
+            <option value="GIF">"GIF"</option>
+            <option value="HDR">"HDR"</option>
+            <option value="ICO">"ICO"</option>
+            <option value="JPEG">"JPEG"</option>
+            <option value="EXR">"EXR"</option>
+            <option value="PNM">"PNM"</option>
+            <option value="TGA">"TGA"</option>
+            <option value="TIFF">"TIFF"</option>
+            <option value="WEBP">"WEBP"</option>
+        </select>
+    }
+}
+
+#[component]
+pub fn QueuedImagesContainer() -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let images = app_state.queued_files;
+
+    mview! {
+        div class="h-5/6 w-full" {
+            h1 class="text-xl text-center" {"Queued"}
+            ImageContainer id="upload-images" source={images};
+        }
+
+    }
+
+}
+
+#[component]
+pub fn UploadedImagesContainer() -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let images = app_state.input_files;
+    mview! {
+        div class="h-5/6 w-full" {
             h1 class="text-xl text-center" {"Uploaded"}
             ImageUploader;
-            ImageContainer id="uploaded-images";
+            ImageContainer id="upload-images" source={images};
         }
     }
 }
@@ -65,11 +353,9 @@ pub fn ImageUploader() -> impl IntoView {
         </div>
     }
 }
-
 #[component]
-pub fn ImageContainer(id: &'static str) -> impl IntoView {
+pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
-    let images = app_state.input_files;
     let select_state = app_state.clone();
     let select_all = move |mv| {
         select_state.input_files.update(|files| {
@@ -87,16 +373,15 @@ pub fn ImageContainer(id: &'static str) -> impl IntoView {
     };
 
 
-
     view! {
-        <div id={id} class="h-5/6 w-full bg-gray-200 overflow-auto">
+        <div id={id} class="h-full w-full bg-gray-200 overflow-auto">
             <div class="flex flex-row">
                 <button on:click=select_all class="w-full">Select All</button>
                 <button on:click=unselect_all class="w-full">Unselect All</button>
             </div>
 
             <For
-                each=move || images.get()
+                each=move || source.get()
                 key=|image| image.id.clone() // Assuming id is a String or similar clonable type
                 children=move |new_image: DisplayImage| {
                     new_image.render()
@@ -115,23 +400,6 @@ pub fn add_images(new_images: Vec<DisplayImage>) {
     let app_state = use_context::<AppState>().expect("AppState not provided");
     app_state.input_files.update(|images| images.extend(new_images));
 }
-
-// #[component]
-// pub fn ImageContainer(id: &'static str, images: Vec<DisplayImage>) -> impl IntoView {
-//     let images_ref = &images;
-//     view! {
-//         <div id={id} class="h-5/6 w-full bg-gray-200 overflow-auto">
-//             <For
-//                 each=move || images_ref.iter().map()
-//                 key=|image| image.id // Use a unique identifier for the key
-//                 children=move |image| {
-//                     image.render()
-//                 }
-//             />
-//         </div>
-//     }
-//
-// }
 
 fn process_files(file_list: FileList, state: AppState) {
     let files: Vec<File> = (0..file_list.length())
@@ -163,6 +431,7 @@ fn process_files(file_list: FileList, state: AppState) {
                             out_filetype: None,
                             time_completed: None,
                             image: img,
+                        result: vec![],
                     });
                 }
             }
