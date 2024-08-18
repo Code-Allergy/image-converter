@@ -188,20 +188,21 @@ pub fn App() -> impl IntoView {
 
     mview! {
         div class="flex w-screen h-screen bg-gray-100 justify-center items-center" {
-            div class="w-3/4 h-3/4 rounded-lg bg-gray-500" {
-                div class="flex h-full"{
-                    div class="flex basis-1/3 h-full justify-center flex-col" {
+            div class="xl:w-3/4 xl:h-3/4 h-full w-full lg:rounded-lg bg-gray-500" {
+                div class="flex h-full flex-col xl:flex-row"{
+                    div class="flex lg:basis-1/3 h-full flex-col" {
                         UploadedImagesContainer;
                     }
-                    div class="h-full basis-1/3 h-full justify-center flex flex-col" {
-                        QueuedImagesContainer;
+                    div class="h-full lg:basis-1/3 h-full flex flex-col" {
                         ConversionOptionsPanel;
+                        QueuedImagesContainer;
 
                     }
-                    div class="h-full basis-1/3 h-full justify-center flex flex-col" {
+                    div class="h-full lg:basis-1/3 flex flex-col" {
                         OutputImagesContainer;
-                    }
 
+                    }
+                    DownloadButton;
                 }
             }
 
@@ -224,6 +225,9 @@ fn DownloadButton() -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
 
     let on_click = move |_| {
+        if app_state.output_files.get().is_empty() {
+            return;
+        }
         let mut buffer = Cursor::new(Vec::new());
         let mut a = Builder::new(buffer);
 
@@ -301,13 +305,13 @@ pub fn ConversionOptionsPanel(
     };
 
     mview! {
-        div class="flex items-center justify-center h-full mb-3"{
-            div class="flex flex-col items-center justify-center h-5/6 w-full bg-primary" {
-                button class="h-24 w-1/4 bg-green-100" on:click={transfer_to_queue} {
-                    "TRANSFER"
-                    // img src="static/arrow.png";
-                }
+        div class="flex items-center justify-center h-full"{
+            div class="flex flex-col items-center justify-center h-5/6 w-full bg-primary h-full text-sm" {
                 FormatSelector on_change={update_format};
+                button class="px-4 py-2 bg-button w-full lg:h-24 lg:w-1/4 bg-button text-sm" on:click={transfer_to_queue} {
+                    "Convert"
+                }
+
             }
         }
     }
@@ -338,7 +342,7 @@ fn FormatSelector(
     };
 
     view! {
-        <select id="format-selector" name="format" on:change=update_format>
+        <select class="w-full" id="format-selector" name="format" on:change=update_format>
             <option value="PNG">"PNG"</option>
             <option value="BMP">"BMP"</option>
             <option value="GIF">"GIF"</option>
@@ -360,14 +364,29 @@ pub fn OutputImagesContainer() -> impl IntoView {
     let images = app_state.output_files;
 
     mview! {
-        div class="h-5/6 w-full" {
-            h1 class="text-xl text-center" {"Finished"}
+        div class="flex-grow w-full" {
+            h1 class="lg:text-xl text-center" {"Finished"}
             ImageContainer id="upload-images" source={images};
         }
-        DownloadButton;
+    }
+}
+
+
+
+#[component]
+pub fn UploadedImagesContainer() -> impl IntoView {
+    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let images = app_state.input_files;
+    mview! {
+        div class="h-full flex-col flex" {
+            h1 class="lg:text-xl text-center" {"Uploaded"}
+            div class="h-40 w-full" {
+                ImageUploader;
+                ImageContainer id="upload-images" source={images};
+            }
+        }
 
     }
-
 }
 
 #[component]
@@ -376,28 +395,12 @@ pub fn QueuedImagesContainer() -> impl IntoView {
     let images = app_state.queued_files;
 
     mview! {
-        div class="h-5/6 w- mt-20" {
-            h1 class="text-xl text-center" {"Queued"}
-            ImageContainer id="upload-images" source={images};
-        }
-
-    }
-
-}
-
-#[component]
-pub fn UploadedImagesContainer() -> impl IntoView {
-    let app_state = use_context::<AppState>().expect("AppState not provided");
-    let images = app_state.input_files;
-    mview! {
-        div class="h-full flex-col flex justify-center" {
-            h1 class="text-xl text-center" {"Uploaded"}
-            div class="h-5/6 w-full mb-14" {
-                ImageUploader;
+        div class="h-full flex flex-col justify-center" {
+            h1 class="lg:text-xl text-center bg-secondary" {"Queued"}
+            div class="h-40 w-full" {
                 ImageContainer id="upload-images" source={images};
-
-
             }
+
         }
 
     }
@@ -419,13 +422,10 @@ pub fn ImageUploader() -> impl IntoView {
 
     view! {
         <div class="flex">
-            <label class="inline-flex grow items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
+            <label class="inline-flex grow items-center px-4 py-2 bg-button rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
               <input type="file" accept="image/*" class="hidden" on:change=on_files_change multiple />
-              <span class="text-sm">Choose Files</span>
+              <span class="text-sm w-full text-center">Choose Files</span>
             </label>
-            <div class="inline-flex px-4 py-2 border border-gray-300 bg-white text-gray-700">
-                {move || {app_clone.input_files.get().len()}}
-            </div>
         </div>
     }
 }
@@ -448,12 +448,20 @@ pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> 
         });
     };
 
+    // let select_all_toggle = move |mc| {
+    //
+    // };
+
 
     view! {
         <div id={id} class="h-full w-full bg-primary overflow-auto border-2">
             <div class="flex flex-row">
+                // <input type="checkbox" class="custom-checkbox" on:click={select_all_toggle} /> -- TODO
                 <button on:click=select_all class="w-full">Select All</button>
                 <button on:click=unselect_all class="w-full">Unselect All</button>
+                <div class="inline-flex px-4 bg-primary">
+                    {move || {app_state.input_files.get().len()}}
+                </div>
             </div>
 
             <For

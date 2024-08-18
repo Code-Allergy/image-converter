@@ -8,6 +8,7 @@ module.exports = {
             colors: {
                 primary: '#9aa8d5',   // Custom primary color
                 secondary: '#6b7280', // Custom secondary color
+                button: '#007BFF'
             },
         },
     },
