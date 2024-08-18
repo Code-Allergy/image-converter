@@ -1,7 +1,7 @@
 mod app;
 mod js;
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::{Bytes, Cursor, Read};
 use leptos::*;
 use leptos::mount_to_body;
 use leptos::prelude::*;
@@ -9,11 +9,14 @@ use image::{DynamicImage, ImageError, ImageFormat};
 use base64::{Engine};
 use base64::engine::general_purpose;
 use image::imageops::FilterType;
+use js_sys::Uint8Array;
 use leptos::{IntoView};
 use leptos_mview::mview;
+use tar::{Builder, Header};
 use uuid::Uuid;
 use web_sys::MouseEvent;
 use crate::app::App;
+use crate::js::downloadFile;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DisplayImage {
@@ -26,7 +29,29 @@ pub struct DisplayImage {
     out_filetype: Option<ImageFormat>,
     time_completed: Option<String>, // FOR NOW this is string todo
     image: DynamicImage,
-    result: Vec<u8>
+    result: Vec<u8>,
+    
+    in_file: FileInfo,
+    out_file: Option<FileInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileInfo {
+    name: String,
+    file_type: ImageFormat,
+    metadata: Option<u8>, // TODO
+    bytes: Vec<u8>
+}
+
+impl Default for FileInfo {
+    fn default() -> Self {
+        FileInfo {
+            name: String::default(),
+            file_type: ImageFormat::Png,
+            metadata: None,
+            bytes: Vec::default(),
+        }
+    }
 }
 
 
@@ -37,6 +62,53 @@ struct AppState {
     queued_files: RwSignal<Vec<DisplayImage>>,
     output_files: RwSignal<Vec<DisplayImage>>,
     count: i32,
+}
+
+impl AppState {
+    pub fn download_selected(&self) {
+        if self.output_files.get().is_empty() {
+            return;
+        }
+
+        let mut buffer = Cursor::new(Vec::new());
+        let mut a = Builder::new(buffer);
+
+        self.output_files.get()
+            .iter()
+            .filter(|img| img.is_selected.get())
+            .for_each(|img| {
+                let old_termination = format!(".{}", img.in_filetype);
+
+                // strip file ext
+                let file_name = if img.name.ends_with(&old_termination) {
+                    img.name.strip_suffix(&old_termination)
+                        .unwrap_or(&img.name)
+                        .to_string()
+                } else {
+                    img.name.to_string()
+                };
+
+                // Truncate file name to a maximum of 64 characters
+                let file_name = file_name.chars().take(64).collect::<String>();
+
+                let mut header = Header::new_gnu();
+                header.set_path(format!("{file_name}.{}", img.out_filetype.unwrap().extensions_str()[0])).unwrap(); // TODO can add support for other terminations in additional settings
+                header.set_size(img.result.len() as u64);
+                header.set_mode(0o644);
+                // header.set_metadata()
+                header.set_cksum();
+
+                a.append(&header, img.result.as_slice()).unwrap()
+            });
+
+        // Get the TAR data from the buffer
+        let tar_data = a.into_inner().unwrap().into_inner();
+
+        // Convert tar data to Uint8Array
+        let js_data = Uint8Array::from(tar_data.as_slice());
+
+        downloadFile("output.tar", js_data.into());
+    }
 }
 
 fn generate_sample_image(img: &DynamicImage, buffer: &mut Vec<u8>) -> String {
@@ -66,6 +138,12 @@ pub fn generate_unique_key() -> String {
     Uuid::new_v4().to_string()
 }
 
+impl IntoView for DisplayImage {
+    fn into_view(self) -> View {
+        self.render().into_view()
+    }
+}
+
 
 impl DisplayImage {
     pub fn render(&self) -> impl IntoView {
@@ -79,7 +157,8 @@ impl DisplayImage {
 
         let conversion_str = match &self.out_filetype {
             None => format!("{}", self.in_filetype),
-            Some(out_ext) => format!("{} -> {}", self.in_filetype, out_ext.extensions_str()[0]),
+            Some(out_ext) => format!("{} -> {}",
+                             self.in_filetype, out_ext.extensions_str()[0]),
         };
 
         let on_checkbox=move |ev| {
@@ -137,6 +216,8 @@ impl DisplayImage {
             time_completed: None,
             image: img,
             result: vec![],
+            in_file: Default::default(),
+            out_file: None,
         })
     }
 
@@ -156,6 +237,8 @@ impl DisplayImage {
             image: img,
             result: vec![],
 
+            in_file: Default::default(),
+            out_file: None,
         })
     }
 }

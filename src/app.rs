@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::time::Duration;
 use image::{DynamicImage, EncodableLayout, ExtendedColorType, ImageEncoder, ImageFormat};
 use js_sys::Uint8Array;
-use leptos::{component, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
+use leptos::{component, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, CollectView, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
 use leptos_mview::mview;
-use tar::Header;
+use tar::{Builder, Header};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::{Closure};
 use wasm_bindgen_futures::spawn_local;
@@ -219,56 +219,18 @@ fn update_uploaded_files(uploaded_files: &mut Vec<DisplayImage>, format: ImageFo
 }
 
 
+fn process_files_and_download(app_state: &AppState) {
+
+}
+
+
 #[component]
 fn DownloadButton() -> impl IntoView {
     use tar::Builder;
     let app_state = use_context::<AppState>().expect("AppState not provided");
 
-    let on_click = move |_| {
-        if app_state.output_files.get().is_empty() {
-            return;
-        }
-        let mut buffer = Cursor::new(Vec::new());
-        let mut a = Builder::new(buffer);
-
-        app_state.output_files.get()
-            .iter()
-            .filter(|img| img.is_selected.get())
-            .for_each(|img| {
-                let old_termination = format!(".{}", img.in_filetype);
-                let mut file_name = if img.name.ends_with(&old_termination) {
-                    if let Some((before, _)) = img.name.rsplit_once(&old_termination) {
-                        before.to_string()
-                    } else {
-                        img.name.clone()
-                    }
-                } else {
-                    img.name.clone()
-                };
-                file_name.truncate(64);
-
-                let mut header = Header::new_gnu();
-                header.set_path(format!("{file_name}.{}", img.out_filetype.unwrap().extensions_str()[0])).unwrap(); // TODO can add support for other terminations in additional settings
-                header.set_size(img.result.len() as u64);
-                header.set_mode(0o644);
-                // header.set_metadata()
-                header.set_cksum();
-
-                a.append(&header, img.result.as_slice()).unwrap()
-        });
-
-
-        // Get the TAR data from the buffer
-        let tar_data = a.into_inner().unwrap().into_inner();
-
-        // Convert tar data to Uint8Array
-        let js_data = Uint8Array::from(tar_data.as_slice());
-
-        downloadFile("output.tar", js_data.into());
-    };
-
     mview! {
-        button on:click={on_click} {"Download"}
+        button on:click={move |mouse_ev| app_state.download_selected() } {"Download"}
     }
 }
 
@@ -460,13 +422,12 @@ pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> 
                 <button on:click=select_all class="w-full">Select All</button>
                 <button on:click=unselect_all class="w-full">Unselect All</button>
                 <div class="inline-flex px-4 bg-primary">
-                    {move || {app_state.input_files.get().len()}}
+                    {move || {source.get().len()}}
                 </div>
             </div>
-
             <For
                 each=move || source.get()
-                key=|image| image.id.clone() // Assuming id is a String or similar clonable type
+                key=|image| image.id.clone()
                 children=move |new_image: DisplayImage| {
                     new_image.render()
                 }
@@ -478,11 +439,6 @@ pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> 
 pub fn add_image(new_image: DisplayImage) {
     let app_state = use_context::<AppState>().expect("AppState not provided");
     app_state.input_files.update(|images| images.push(new_image));
-}
-
-pub fn add_images(new_images: Vec<DisplayImage>) {
-    let app_state = use_context::<AppState>().expect("AppState not provided");
-    app_state.input_files.update(|images| images.extend(new_images));
 }
 
 fn process_files(file_list: FileList) {
@@ -521,6 +477,8 @@ fn process_files(file_list: FileList) {
                             preview: generate_sample_image(&img, &mut buffer),
                             image: img,
                         result: vec![],
+                        in_file: Default::default(),
+                        out_file: None,
                     });
                 }
             }
