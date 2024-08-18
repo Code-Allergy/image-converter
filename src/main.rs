@@ -1,16 +1,15 @@
 mod app;
-
+mod js;
 use std::fs::File;
-use std::io;
 use std::io::{Cursor, Read};
 use leptos::*;
 use leptos::mount_to_body;
 use leptos::prelude::*;
 use image::{DynamicImage, ImageError, ImageFormat};
-use base64::{engine::general_purpose::STANDARD, write::EncoderWriter, Engine};
+use base64::{Engine};
 use base64::engine::general_purpose;
 use image::imageops::FilterType;
-use leptos::{component, view, IntoView};
+use leptos::{IntoView};
 use leptos_mview::mview;
 use uuid::Uuid;
 use web_sys::MouseEvent;
@@ -39,20 +38,6 @@ struct AppState {
     output_files: RwSignal<Vec<DisplayImage>>,
     count: i32,
 }
-
-// fn image_to_data_url(image: &DynamicImage) -> String {
-//     // Convert the DynamicImage to a PNG format
-//     let mut buf = Vec::new();
-//     let mut out_buff = String::new();
-//     let encoder = image::codecs::png::PngEncoder::new(&mut buf);
-//     encoder.encode_image(image).expect("Failed to encode image");
-//
-//     let mut b64_encoder = EncoderWriter::new(&mut out_buff, &STANDARD);
-//     io::copy(&mut io::stdin(), &mut b64_encoder).expect("Failed to base64 encode image");
-//
-//     // Format the base64 string into a data URL
-//     format!("data:image/png;base64,{}", out_buff)
-// }
 
 fn generate_sample_image(img: &DynamicImage, buffer: &mut Vec<u8>) -> String {
     buffer.clear(); // Clear the buffer for reuse
@@ -137,7 +122,7 @@ impl DisplayImage {
     pub fn from_file(filename: &str) -> Result<Self, ImageError> {
         let mut file = File::open(filename)?;
         let mut buffer = vec![];
-        let bytes_read = file.read_to_end(&mut buffer)?;
+        file.read_to_end(&mut buffer)?;
         let format = image::guess_format(&buffer)?;
         let img = image::load_from_memory(&buffer)?;
 
