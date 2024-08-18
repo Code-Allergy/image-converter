@@ -39,7 +39,7 @@ jobs:
         run: cargo clippy & cargo fmt
 
       - name: Download and install tailwindcss binary
-        run: npm install -D tailwindcss && npx tailwindcss -i ./input.css -o ./style/output.css
+        run: npm install -D tailwindcss
 
 
       - name: Download and install Trunk binary

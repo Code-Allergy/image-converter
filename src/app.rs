@@ -1,21 +1,19 @@
 use std::cell::RefCell;
 use std::io::{Cursor};
-use std::rc::Rc;
 use std::time::Duration;
 use image::{DynamicImage, EncodableLayout, ExtendedColorType, ImageEncoder, ImageFormat};
-use js_sys::Uint8Array;
-use leptos::{component, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, CollectView, For, IntoView, RwSignal, SignalGet, SignalSet, SignalUpdate};
+
 use leptos_mview::mview;
-use tar::{Builder, Header};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::{Closure};
-use wasm_bindgen_futures::spawn_local;
 use web_sys::{Event, File, FileList, HtmlInputElement};
 use crate::{generate_sample_image, generate_unique_key, AppState, DisplayImage};
 use wasm_bindgen::prelude::*;
-use crate::js::downloadFile;
 
-fn convert_image(img: DynamicImage, format: ImageFormat) -> Result<Vec<u8>, ()> {
+use leptos::{component, create_rw_signal, create_signal, event_target_value, provide_context, use_context, view, Callable, Callback, For, IntoView, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate};
+use wasm_bindgen_futures::spawn_local;
+
+pub fn convert_image(img: DynamicImage, format: ImageFormat) -> Result<Vec<u8>, ()> {
     let mut buffer = Vec::new();
     let mut cursor = Cursor::new(&mut buffer);
 
@@ -158,20 +156,21 @@ fn convert_image(img: DynamicImage, format: ImageFormat) -> Result<Vec<u8>, ()> 
 
 #[component]
 pub fn App() -> impl IntoView {
-    let app_state = AppState { input_files: Default::default(), queued_files: Default::default(), output_files: Default::default(), count: 0 };
-    provide_context(app_state.clone());
+    let app_state = AppState { input_files: Default::default(), queued_files: Default::default(),
+        output_files: Default::default()};
 
+    provide_context(app_state.clone());
     let tester_resolver = spawn_local(async move {
         loop {
             let queued = app_state.queued_files;
-            let queued_items = app_state.queued_files.get();
+            let queued_items = app_state.queued_files.get_untracked();
 
-            if !queued_items.is_empty() {
+
+            while !queued_items.is_empty() {
                 queued.update(|files| {
                     let output_items = app_state.output_files;
                     let mut file = files.pop().unwrap();
                     let out_type = file.out_filetype.clone().unwrap();
-
                     let encoded = convert_image(file.image.clone(), out_type);
 
                     // process the image now.
@@ -179,10 +178,9 @@ pub fn App() -> impl IntoView {
 
                     output_items.clone().update(|output_item| output_item.push(file));
                 })
-            };
 
-
-            async_std::task::sleep(Duration::from_micros(10)).await;
+            }
+            async_std::task::sleep(Duration::from_micros(1000)).await;
         }
     });
 
@@ -205,75 +203,33 @@ pub fn App() -> impl IntoView {
                     DownloadButton;
                 }
             }
-
-
         }
     }
 }
 
-fn update_uploaded_files(uploaded_files: &mut Vec<DisplayImage>, format: ImageFormat) {
-    // Iterate mutably over the vector and update each element
-    for img in uploaded_files.iter_mut() {
-        img.out_filetype = Some(format);
-    }
-}
-
-
-fn process_files_and_download(app_state: &AppState) {
-
-}
-
-
 #[component]
 fn DownloadButton() -> impl IntoView {
-    use tar::Builder;
-    let app_state = use_context::<AppState>().expect("AppState not provided");
+    let state = use_context::<AppState>().expect("AppState not provided");
 
     mview! {
-        button on:click={move |mouse_ev| app_state.download_selected() } {"Download"}
+        button on:click={ move |_| state.download_selected() } {"Download"}
     }
 }
 
+
 #[component]
-pub fn ConversionOptionsPanel(
-) -> impl IntoView {
+pub fn ConversionOptionsPanel() -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
 
-
     let (output_format, set_output_format) = create_signal(ImageFormat::Png); // png is first selected
-
-
-    let uploaded = app_state.input_files;
-    let queued = app_state.queued_files;
-
-    // let update_format = move |ev| {
-    //     let new_value = event_target_value(&ev);
-    //     set_output_format.set(new_value.parse().unwrap());
-    // };
-
-    let update_format = move |format| {
-        set_output_format.set(format);
-    };
-
-    let transfer_to_queue = move |_| {
-        queued.update(|queued| {
-            let format = output_format.get();
-            let mut uploaded_files = uploaded.get();
-            let mut selected_files = uploaded_files.iter().filter(|img| img.is_selected.get()).cloned().collect();
-            update_uploaded_files(&mut selected_files, output_format.get());
-            queued.extend(selected_files);
-            uploaded.update(|queue| queue.retain(|image| !image.is_selected.get()));
-        });
-    };
 
     mview! {
         div class="flex items-center justify-center h-full"{
             div class="flex flex-col items-center justify-center h-5/6 w-full bg-primary h-full text-sm" {
-                FormatSelector on_change={update_format};
-                button class="px-4 py-2 bg-button w-full lg:h-24 lg:w-1/4 bg-button text-sm" on:click={transfer_to_queue} {
+                FormatSelector on_change={move |format| set_output_format.set(format)};
+                button class="px-4 py-2 bg-button w-full lg:h-24 lg:w-1/4 bg-button text-sm" on:click={move |_| app_state.queue_selected(output_format.get())} {
                     "Convert"
                 }
-
             }
         }
     }
@@ -298,7 +254,7 @@ fn FormatSelector(
             "TGA" => ImageFormat::Tga,
             "TIFF" => ImageFormat::Tiff,
             "WEBP" => ImageFormat::WebP,
-            _ => ImageFormat::Png, // Default to PNG if unknown
+            _ => ImageFormat::Png, // Default to PNG if unknown, TODO error handling later, should inform & ignore
         };
         on_change.call(image_format);
     };
@@ -320,31 +276,17 @@ fn FormatSelector(
     }
 }
 
-#[component]
-pub fn OutputImagesContainer() -> impl IntoView {
-    let app_state = use_context::<AppState>().expect("AppState not provided");
-    let images = app_state.output_files;
-
-    mview! {
-        div class="flex-grow w-full" {
-            h1 class="lg:text-xl text-center" {"Finished"}
-            ImageContainer id="upload-images" source={images};
-        }
-    }
-}
-
-
 
 #[component]
 pub fn UploadedImagesContainer() -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
-    let images = app_state.input_files;
+
     mview! {
         div class="h-full flex-col flex" {
             h1 class="lg:text-xl text-center" {"Uploaded"}
             div class="h-40 w-full" {
                 ImageUploader;
-                ImageContainer id="upload-images" source={images};
+                ImageContainer id="upload-images" source={app_state.input_files};
             }
         }
 
@@ -354,13 +296,12 @@ pub fn UploadedImagesContainer() -> impl IntoView {
 #[component]
 pub fn QueuedImagesContainer() -> impl IntoView {
     let app_state = use_context::<AppState>().expect("AppState not provided");
-    let images = app_state.queued_files;
 
     mview! {
         div class="h-full flex flex-col justify-center" {
             h1 class="lg:text-xl text-center bg-secondary" {"Queued"}
             div class="h-40 w-full" {
-                ImageContainer id="upload-images" source={images};
+                ImageContainer id="upload-images" source={app_state.queued_files};
             }
 
         }
@@ -369,13 +310,30 @@ pub fn QueuedImagesContainer() -> impl IntoView {
 }
 
 #[component]
-pub fn ImageUploader() -> impl IntoView {
-    let (file_count, set_file_count) = create_signal(0);
-    let app_state = use_context::<AppState>().expect("AppState not provided");
+pub fn OutputImagesContainer() -> impl IntoView {
+    let state = use_context::<AppState>().expect("AppState not provided");
 
-    let app_clone = app_state.clone();
+    mview! {
+        div class="flex-grow w-full" {
+            h1 class="lg:text-xl text-center" {"Finished"}
+            ImageContainer id="upload-images" source={state.output_files};
+        }
+    }
+}
+
+
+
+
+
+#[component]
+pub fn ImageUploader() -> impl IntoView {
+    let state = use_context::<AppState>().expect("AppState not provided");
+
+    let (file_count, set_file_count) = create_signal(0);
+
+    let app_clone = state.clone();
     let on_files_change = move |ev: Event| {
-        let app_state = app_state.clone(); // Clone here
+        let app_state = state.clone();
         let input: HtmlInputElement = ev.target().unwrap().unchecked_into();
         if let Some(file_list) = input.files() {
             process_files(file_list);
@@ -384,7 +342,8 @@ pub fn ImageUploader() -> impl IntoView {
 
     view! {
         <div class="flex">
-            <label class="inline-flex grow items-center px-4 py-2 bg-button rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
+            <label class="inline-flex grow items-center px-4 py-2 \
+                bg-button rounded-md shadow-sm cursor-pointer hover:bg-gray-50">
               <input type="file" accept="image/*" class="hidden" on:change=on_files_change multiple />
               <span class="text-sm w-full text-center">Choose Files</span>
             </label>
@@ -393,34 +352,25 @@ pub fn ImageUploader() -> impl IntoView {
 }
 #[component]
 pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> impl IntoView {
-    let app_state = use_context::<AppState>().expect("AppState not provided");
-    let select_state = app_state.clone();
-    let select_all = move |mv| {
-        source.update(|files| {
-            files.iter_mut().for_each(|mut image| {
-                image.is_selected.set(true);
-            })
-        });
-    };
-    let unselect_all = move |mv| {
-        source.update(|files| {
-            files.iter_mut().for_each(|mut image| {
-                image.is_selected.set(false);
-            })
-        });
-    };
+    let state = use_context::<AppState>().expect("AppState not provided");
 
-    // let select_all_toggle = move |mc| {
-    //
-    // };
+    let (all_selected, set_all_selected) = create_signal(false);
+    let select_state = state.clone();
+
+    let select_all_toggle = move |mc| {
+        let select_state = !all_selected.get();
+        source.update(|files| {
+            files.iter_mut().for_each(|img| {
+                img.is_selected.set(select_state);
+            });
+        });
+    };
 
 
     view! {
         <div id={id} class="h-full w-full bg-primary overflow-auto border-2">
             <div class="flex flex-row">
-                // <input type="checkbox" class="custom-checkbox" on:click={select_all_toggle} /> -- TODO
-                <button on:click=select_all class="w-full">Select All</button>
-                <button on:click=unselect_all class="w-full">Unselect All</button>
+                <input type="checkbox" class="m-2 custom-checkbox" on:click={select_all_toggle} />
                 <div class="inline-flex px-4 bg-primary">
                     {move || {source.get().len()}}
                 </div>
@@ -429,7 +379,7 @@ pub fn ImageContainer(id: &'static str, source: RwSignal<Vec<DisplayImage>>) -> 
                 each=move || source.get()
                 key=|image| image.id.clone()
                 children=move |new_image: DisplayImage| {
-                    new_image.render()
+                    new_image
                 }
             />
         </div>
@@ -445,7 +395,7 @@ fn process_files(file_list: FileList) {
     let files: Vec<File> = (0..file_list.length())
         .filter_map(|i| file_list.get(i))
         .collect();
-    let reusable_buffer = Rc::new(RefCell::new(Vec::with_capacity(8192)));
+    let reusable_buffer = std::rc::Rc::new(RefCell::new(Vec::with_capacity(8192)));
 
     for file in files {
         let file_reader = web_sys::FileReader::new().unwrap();
